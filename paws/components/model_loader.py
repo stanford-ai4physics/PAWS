@@ -5,7 +5,8 @@ import json
 
 import numpy as np
 
-from quickstats import semistaticmethod, get_module_version
+from quickstats import semistaticmethod
+from quickstats.core.modules import get_module_version
 from quickstats.utils.string_utils import split_str
 
 from paws.settings import (
@@ -13,6 +14,10 @@ from paws.settings import (
     MLP_LAYERS, INIT_MU, INIT_ALPHA, INIT_KAPPA,
     DEFAULT_FEATURE_LEVEL, DEFAULT_DECAY_MODE, DEFAULT_OUTDIR,
     MASS_RANGE, MASS_SCALE, PRIOR_RATIO, PRIOR_RATIO_NET_LAYERS
+)
+from paws.utils import (
+    get_parameter_transform,
+    get_parameter_regularizer
 )
 from .base_loader import BaseLoader
 
@@ -29,9 +34,10 @@ class ModelLoader(BaseLoader):
                  decay_modes: List[str] = DEFAULT_DECAY_MODE,
                  variables: Optional[str] = None,
                  noise_dimension: Optional[int] = None,
+                 sigmoid_activation: bool = False,
                  loss: str = 'bce',
                  distribute_strategy = None,
-                 outdir: str = DEFAULT_OUTDIR,
+                 outdir: str = DEFAULT_OUTDIR,                 
                  verbosity: str = 'INFO',
                  **kwargs):
         """
@@ -72,6 +78,7 @@ class ModelLoader(BaseLoader):
                          verbosity=verbosity,
                          **kwargs)
         self._loss = loss
+        self._sigmoid_activation = sigmoid_activation
 
     @property
     def loss(self) -> str:
@@ -346,7 +353,6 @@ class ModelLoader(BaseLoader):
 
     @staticmethod
     def get_single_parameter_model(activation: str = 'linear',
-                                   exponential: bool = False,
                                    kernel_initializer = None,
                                    kernel_constraint = None,
                                    kernel_regularizer = None,
@@ -391,8 +397,6 @@ class ModelLoader(BaseLoader):
                         kernel_constraint=kernel_constraint,
                         kernel_regularizer=kernel_regularizer,
                         name=name)(inputs)
-        if exponential:
-            outputs = exp(outputs)
         model = Model(inputs=inputs, outputs=outputs)
         if not trainable:
             model.trainable = False
@@ -401,7 +405,8 @@ class ModelLoader(BaseLoader):
     @semistaticmethod
     def get_semi_weakly_weights(self, m1: float, m2: float,
                                 mu: Optional[float] = None,
-                                alpha: Optional[float] = None):
+                                alpha: Optional[float] = None,
+                                use_sigmoid: bool = False):
         """
         Get the weight parameters for constructing the semi-weakly model.
 
@@ -422,29 +427,28 @@ class ModelLoader(BaseLoader):
             Dictionary of weights.
         """
         import tensorflow as tf
-        from aliad.interface.tensorflow.regularizers import MinMaxRegularizer
 
-        mass_range = (MASS_RANGE[0] * MASS_SCALE, MASS_RANGE[1] * MASS_SCALE)
         weights = {
-            'm1': self.get_single_parameter_model(kernel_initializer=tf.constant_initializer(float(m1)),
-                                                  kernel_regularizer=MinMaxRegularizer(*mass_range),
+            'm1': self.get_single_parameter_model(activation=get_parameter_transform('m1'),
+                                                  kernel_initializer=tf.constant_initializer(float(m1)),
+                                                  kernel_regularizer=get_parameter_regularizer('m1'),
                                                   name='m1'),
-            'm2': self.get_single_parameter_model(kernel_initializer=tf.constant_initializer(float(m2)),
-                                                  kernel_regularizer=MinMaxRegularizer(*mass_range),
+            'm2': self.get_single_parameter_model(activation=get_parameter_transform('m2'),
+                                                  kernel_initializer=tf.constant_initializer(float(m2)),
+                                                  kernel_regularizer=get_parameter_regularizer('m2'),
                                                   name='m2')
         }
         if mu is not None:
-            weights['mu'] = self.get_single_parameter_model(exponential=True,
+            weights['mu'] = self.get_single_parameter_model(activation=get_parameter_transform('mu'),
                                                             kernel_initializer=tf.constant_initializer(float(mu)),
-                                                            kernel_regularizer=MinMaxRegularizer(-10.0, 0.0),
+                                                            kernel_regularizer=get_parameter_regularizer('mu'),
                                                             name='mu')
             
         if alpha is not None:
-            weights['alpha'] = self.get_single_parameter_model(exponential=False,
+            weights['alpha'] = self.get_single_parameter_model(activation=get_parameter_transform('alpha'),
                                                                kernel_initializer=tf.constant_initializer(float(alpha)),
-                                                               kernel_regularizer=MinMaxRegularizer(0, 1, 10),
+                                                               kernel_regularizer=get_parameter_regularizer('alpha'),
                                                                name='alpha')
-            
         return weights
 
     @staticmethod
@@ -499,7 +503,8 @@ class ModelLoader(BaseLoader):
                                kappa: Union[str, float] = INIT_KAPPA,
                                fs_model_path_2: Optional[str] = None,
                                epsilon: float = 1e-5, 
-                               bug_fix: bool = True) -> "keras.Model":
+                               bug_fix: bool = True,
+                               use_sigmoid: bool = False) -> "keras.Model":
         import tensorflow as tf
         if get_module_version('keras') > (3, 0, 0):
             from keras.ops import ones_like
@@ -507,9 +512,9 @@ class ModelLoader(BaseLoader):
             ones_like = tf.ones_like
 
         inputs = self.get_supervised_model_inputs(feature_metadata)
-        weights = self.get_semi_weakly_weights(m1=m1, m2=m2, mu=mu, alpha=alpha)
-        m1_out = float(1 / MASS_SCALE) * weights['m1'](ones_like(inputs['jet_features'])[:, 0, 0])
-        m2_out = float(1 / MASS_SCALE) * weights['m2'](ones_like(inputs['jet_features'])[:, 0, 0])
+        weights = self.get_semi_weakly_weights(m1=m1, m2=m2, mu=mu, alpha=alpha, use_sigmoid=use_sigmoid)
+        m1_out = weights['m1'](ones_like(inputs['jet_features'])[:, 0, 0])
+        m2_out = weights['m2'](ones_like(inputs['jet_features'])[:, 0, 0])
         mu_out = weights['mu'](ones_like(inputs['jet_features'])[:, 0, 0])
         alpha_out = weights['alpha'](ones_like(inputs['jet_features'])[:, 0, 0])
         mass_params = tf.keras.layers.concatenate([m1_out, m2_out])
@@ -603,7 +608,8 @@ class ModelLoader(BaseLoader):
                               kappa: Union[float, str] = INIT_KAPPA,
                               fs_model_path_2: Optional[str] = None,
                               epsilon: float = 1e-5,
-                              bug_fix: bool = True) -> "keras.Model":
+                              bug_fix: bool = True,
+                              use_sigmoid: bool = False) -> "keras.Model":
         """
         Get the semi-weakly model.
 
@@ -645,7 +651,8 @@ class ModelLoader(BaseLoader):
             'kappa': kappa,
             'fs_model_path_2': fs_model_path_2,
             'epsilon': epsilon,
-            'bug_fix': bug_fix
+            'bug_fix': bug_fix,
+            'use_sigmoid': use_sigmoid
         }
         model_fn = self._get_semi_weakly_model
         return self._distributed_wrapper(model_fn, **kwargs)
@@ -770,8 +777,18 @@ class ModelLoader(BaseLoader):
             ScaledBinaryCrossentropy,
             ScaledNLLLoss
         )
-        custom_objects = {"ScaledBinaryCrossentropy": ScaledBinaryCrossentropy,
-                          "ScaledNLLLoss": ScaledNLLLoss}
+        from aliad.interface.keras.activations import (
+            Scale,
+            Linear,
+            Exponential
+        )        
+        custom_objects = {
+            "ScaledBinaryCrossentropy": ScaledBinaryCrossentropy,
+            "ScaledNLLLoss": ScaledNLLLoss,
+            "Scale": Scale,
+            "Linear": Linear,
+            "Exponential": Exponential
+        }
         model = tf.keras.models.load_model(model_path, custom_objects=custom_objects)
         return model
 

@@ -3,20 +3,14 @@ from itertools import repeat
 from collections import defaultdict
 import numpy as np
 
-from aliad.components import ModelOutput
+from aliad.components.outputs import ModelOutput
 from quickstats import AbstractObject, semistaticmethod
 from quickstats.parsers import ParamParser
 from quickstats.utils.common_utils import execute_multi_tasks
 
 from paws.components.model_loader import ModelLoader
 from paws.settings import MASS_SCALE
-
-transforms = {
-    'm1': lambda x : x * MASS_SCALE,
-    'm2': lambda x : x * MASS_SCALE,
-    'mu': lambda x : np.log(x),
-    'alpha': lambda x : x
-}
+from paws.utils import get_parameter_transforms
 
 class MetricLandscape(AbstractObject):
     """
@@ -26,6 +20,7 @@ class MetricLandscape(AbstractObject):
     """
 
     def __init__(self, verbosity: Optional[str] = 'INFO'):
+        self.param_transforms = get_parameter_transforms()
         super().__init__(verbosity=verbosity)
 
     @semistaticmethod
@@ -40,10 +35,16 @@ class MetricLandscape(AbstractObject):
         y_true = np.concatenate([data[y_index] for data in dataset]).flatten()
         return y_true
 
-    def eval_semiweakly(self, model, dataset,
-                        param_expr: str,
-                        metrics: Optional[List[str]] = None,
-                        label: Optional[int] = None) -> Dict:
+    def eval_semiweakly(
+        self,
+        model,
+        dataset,
+        param_expr: str,
+        metrics: Optional[List[str]] = None,
+        nbootstrap: Optional[int] = None,
+        seed: Optional[int] = None,
+        label: Optional[int] = None
+    ) -> Dict:
         """
         Get prediction from a semi-weakly model for the given dataset.
 
@@ -76,32 +77,52 @@ class MetricLandscape(AbstractObject):
         param_points = ParamParser.parse_param_str(param_expr)
 
         y_true = self._get_y_true(dataset)
-        outputs = {
-            'predictions': defaultdict(list)
-        }
-        if metrics is None:
-            outputs['y_true'] = y_true
+
+        parameters = defaultdict(list)
+        if not metrics:
+            outputs = {
+                'y_true': y_true,
+                'y_pred': [],
+                'params': parameters
+            }
             metrics = []
+        else:
+            outputs = parameters
+            
         for param_point in param_points:
+            weights = {}
             for key, val in param_point.items():
                 if key not in init_weights:
-                    raise ValueError(f'Model does not have the parameter "{key}".')
+                    raise ValueError(f'Invalid model parameter: "{key}"')
                 if val is None:
-                    param_point[key] = init_weights[key]
-                outputs['predictions'][key].append(param_point[key])
+                    weights[key] = init_weights[key]
+                    param_point[key] = self.param_transforms[key].get_value(weights[key])
+                else:
+                    weights[key] = self.param_transforms[key].inverse.get_value(val)
+                parameters[key].append(param_point[key])
+            ModelLoader.set_model_weights(model, weights)
             encoded_str = ParamParser.val_encode_parameters(param_point)
-            ModelLoader.set_model_weights(model, param_point)
             self.stdout.info(f"Running model prediction with {encoded_str}")
 
             y_pred = model.predict(dataset).flatten()
             for metric in metrics:
                 metric_val = self._evaluate(metric, y_pred, y_true, label=label)
-                outputs['predictions'][metric].append(metric_val)
+                parameters[metric].append(metric_val)
+            if nbootstrap is not None:
+                parameters['bootstrap_index'].append(-1)
+                parameters['bootstrap_index'].extend(list(range(nbootstrap)))
+                for key, val in param_point.items():
+                    parameters[key].extend([val] * nbootstrap)
+                np.random.seed(seed)
+                sample_weights = np.random.poisson(size=(nbootstrap, len(y_pred)))
+                for metric in metrics:
+                    for sample_weight in sample_weights:
+                        metric_val = self._evaluate(metric, y_pred, y_true, weight=sample_weight, label=label)
+                        parameters[metric].append(metric_val)
             if not metrics:
-                outputs['predictions']['y_pred'].append(y_pred)
-
-        for key in outputs['predictions']:
-            outputs['predictions'][key] = np.array(outputs['predictions'][key])
+                outputs['y_pred'].append(y_pred)
+        for key in parameters:
+            parameters[key] = np.array(parameters[key])
 
         return outputs
 
@@ -177,13 +198,18 @@ class MetricLandscape(AbstractObject):
         return outputs
 
     @staticmethod
-    def _evaluate(metric: str, y_pred: np.ndarray, y_true: np.ndarray, label: Optional[int] = None):
+    def _evaluate(
+        metric: str,
+        y_pred: np.ndarray,
+        y_true: np.ndarray,
+        weight: Optional[np.ndarray] = None,
+        label: Optional[int] = None):
         if label is not None:
             mask = y_true == label
             y_true = y_true[mask]
             y_pred = y_pred[mask]
-        output = ModelOutput(y_true=y_true, y_score=y_pred)
-        return output.get(metric)
+        output = ModelOutput(y_true=y_true, y_pred=y_pred, weight=weight)
+        return getattr(output, metric)()
 
     @semistaticmethod
     def _get_metric_landscape(self, data, metric: str,

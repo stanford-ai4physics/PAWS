@@ -52,7 +52,7 @@ def create_dedicated_datasets(**kwargs):
     Create dedicated datasets for model training.
     """
     from quickstats import stdout
-    from quickstats.core.io import switch_verbosity
+    from quickstats import switch_verbosity
     from paws.data_preparation import create_high_level_dedicated_datasets
     samples = kwargs.pop("samples")
     verbosity = kwargs.pop("verbosity")

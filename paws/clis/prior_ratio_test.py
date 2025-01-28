@@ -30,7 +30,7 @@ def get_components(m1: float, m2: float, mu: float, alpha: float, **kwargs):
     weights = {
         'm1': m1 / 100,
         'm2': m2 / 100,
-        'mu': np.log(mu),
+        'mu': -1,
         'alpha': alpha
     }
     
@@ -64,10 +64,10 @@ def get_components(m1: float, m2: float, mu: float, alpha: float, **kwargs):
     }
     
     qq_prior_trainer = ModelTrainer("prior_ratio", model_options=model_options, decay_modes="qq",
-                                    cache_test=True, variables="3,5,6", datadir=datadir, outdir=outdir)
+                                    cache_test=True, variables="3,5,6", **kwargs)
     
     qqq_prior_trainer = ModelTrainer("prior_ratio", model_options=model_options, decay_modes="qqq",
-                                     cache_test=True, variables="3,5,6", datadir=datadir, outdir=outdir)
+                                     cache_test=True, variables="3,5,6", **kwargs)
     models['prior_ratio']['qq']['sampled'] = qq_prior_trainer.load_trained_model()
     models['prior_ratio']['qqq']['sampled'] = qqq_prior_trainer.load_trained_model()
     
@@ -75,9 +75,9 @@ def get_components(m1: float, m2: float, mu: float, alpha: float, **kwargs):
         'sampling_method': 'inferred'
     }
     qq_prior_trainer = ModelTrainer("prior_ratio", model_options=model_options, decay_modes="qq",
-                                    cache_test=True, variables="3,5,6", datadir=datadir, outdir=outdir)
+                                    cache_test=True, variables="3,5,6", **kwargs)
     qqq_prior_trainer = ModelTrainer("prior_ratio", model_options=model_options, decay_modes="qqq",
-                                     cache_test=True, variables="3,5,6", datadir=datadir, outdir=outdir)
+                                     cache_test=True, variables="3,5,6", **kwargs)
     models['prior_ratio']['qq']['inferred'] = qq_prior_trainer.load_trained_model()
     models['prior_ratio']['qqq']['inferred'] = qqq_prior_trainer.load_trained_model()
 
@@ -143,29 +143,29 @@ def run_scenario(m1: float, m2: float, mu: float, alpha: float,
     else:
         mu_arr = np.exp(np.arange(-8, -2, 0.1))
 
-    kappa_2, kappa_3 = 1.0, 1.0
-    print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
-    results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
-                            y_true=y_true, y_pred_2=y_pred_2,
-                            y_pred_3=y_pred_3, kappa_2=kappa_2,
-                            kappa_3=kappa_3, batchsize=batchsize)
-    all_results['no_kappa'] = results
-    
-    kappa_2, kappa_3 = 10., 10.
-    print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
-    results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
-                            y_true=y_true, y_pred_2=y_pred_2,
-                            y_pred_3=y_pred_3, kappa_2=kappa_2,
-                            kappa_3=kappa_3, batchsize=batchsize)
-    all_results['uniform_kappa'] = results
-    model_2, model_3 = models['prior_ratio']['qq']['inferred'], models['prior_ratio']['qqq']['inferred']
-    kappa_2, kappa_3 = model_2.predict([[m1, m2]])[0][0], model_3.predict([[m1, m2]])[0][0]
-    print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
-    results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
-                            y_true=y_true, y_pred_2=y_pred_2,
-                            y_pred_3=y_pred_3, kappa_2=kappa_2,
-                            kappa_3=kappa_3, batchsize=batchsize)
-    all_results['inferred_kappa'] = results
+    #kappa_2, kappa_3 = 1.0, 1.0
+    #print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
+    #results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
+    #                        y_true=y_true, y_pred_2=y_pred_2,
+    #                        y_pred_3=y_pred_3, kappa_2=kappa_2,
+    #                        kappa_3=kappa_3, batchsize=batchsize)
+    #all_results['no_kappa'] = results
+    #
+    #kappa_2, kappa_3 = 10., 10.
+    #print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
+    #results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
+    #                        y_true=y_true, y_pred_2=y_pred_2,
+    #                        y_pred_3=y_pred_3, kappa_2=kappa_2,
+    #                        kappa_3=kappa_3, batchsize=batchsize)
+    #all_results['uniform_kappa'] = results
+    #model_2, model_3 = models['prior_ratio']['qq']['inferred'], models['prior_ratio']['qqq']['inferred']
+    #kappa_2, kappa_3 = model_2.predict([[m1, m2]])[0][0], model_3.predict([[m1, m2]])[0][0]
+    #print(f'Running with kappa_2 = {kappa_2}, kappa_3 = {kappa_3}')
+    #results = run_loss_scan(mu_arr=mu_arr, alpha_arr=alpha_arr,
+    #                        y_true=y_true, y_pred_2=y_pred_2,
+    #                        y_pred_3=y_pred_3, kappa_2=kappa_2,
+    #                        kappa_3=kappa_3, batchsize=batchsize)
+    #all_results['inferred_kappa'] = results
 
     model_2, model_3 = models['prior_ratio']['qq']['sampled'], models['prior_ratio']['qqq']['sampled']
     kappa_2, kappa_3 = model_2.predict([[m1, m2]])[0][0], model_3.predict([[m1, m2]])[0][0]

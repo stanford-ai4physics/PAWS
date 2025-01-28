@@ -335,7 +335,10 @@ def create_high_level_dedicated_datasets(sample:str, datadir:str=DEFAULT_DATADIR
     label = sample.label
     feature_arrays, mass_arrays = process_lhco_h5(dataset_path, signal_region=signal_region, 
                                                   sortby=sortby, unit=unit, label=label)
-    mass_points = get_mass_points()
+    if mass_arrays is None:
+        mass_points = get_mass_points()
+    else:
+        mass_points = np.unique(mass_arrays, axis=0)
     for mass_point in mass_points:
         m1, m2 = mass_point
         data = {}

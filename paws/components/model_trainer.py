@@ -19,6 +19,7 @@ from paws.settings import (
     INIT_MU, INIT_ALPHA, MASS_RANGE, MASS_INTERVAL, MASS_SCALE, PRIOR_RATIO,
     SAMPLING_METHOD, INIT_KAPPA
 )
+from paws.utils import get_parameter_inverse_transform
 
 MODEL_OPTIONS = {
     DEDICATED_SUPERVISED: {
@@ -35,7 +36,9 @@ MODEL_OPTIONS = {
     },
     SEMI_WEAKLY: {
         'required': ['mass_point', 'mu', 'alpha'],
-        'optional': ['num_trials', 'weight_clipping', 'retrain', 'kappa', 'fs_version', 'fs_version_2']
+        'optional': ['num_trials', 'weight_clipping', 'retrain',
+                     'kappa', 'fs_version', 'fs_version_2',
+                     'use_sigmoid']
     },
     PRIOR_RATIO: {
         'required': [],
@@ -256,10 +259,11 @@ class ModelTrainer(AbstractObject):
             options.setdefault('weight_clipping', WEIGHT_CLIPPING)
             options.setdefault('retrain', RETRAIN)
             options.setdefault('kappa', INIT_KAPPA)
+            options.setdefault('use_sigmoid', False)
 
         if self.model_type == PRIOR_RATIO:
             options.setdefault('sampling_method', SAMPLING_METHOD)
-
+            
         self.model_options = options
 
     def get_datasets(self) -> "tf.data.Dataset":
@@ -320,10 +324,23 @@ class ModelTrainer(AbstractObject):
         if self.model_type == PARAM_SUPERVISED:
             return self.model_loader.get_supervised_model(feature_metadata, parametric=True)
         if self.model_type == SEMI_WEAKLY:
-            return self.model_loader.get_semi_weakly_model(feature_metadata,
+            model = self.model_loader.get_semi_weakly_model(feature_metadata,
                                                            fs_model_path=self.model_options['fs_model_path'],
                                                            fs_model_path_2=self.model_options['fs_model_path_2'],
-                                                           kappa=self.model_options['kappa'])
+                                                           kappa=self.model_options['kappa'],
+                                                           use_sigmoid=self.model_options['use_sigmoid'])            
+            # set to correct initial weight first and change later
+            true_values = {
+                'm1': self.model_options['mass_point'][0],
+                'm2': self.model_options['mass_point'][1],
+                'mu': self.model_options['mu'],
+                'alpha': self.model_options['alpha']
+            }
+            true_weights = {}
+            for key, value in true_values.items():
+                true_weights[key] = get_parameter_inverse_transform(key)(value)
+            self.model_loader.set_semi_weakly_model_weights(model, **true_weights)
+            return model
         if self.model_type == PRIOR_RATIO:
             return self.model_loader.get_prior_ratio_model(feature_metadata)
         raise RuntimeError(f'Unknown model type: {self.model_type}')
