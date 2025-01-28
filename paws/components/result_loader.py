@@ -11,13 +11,16 @@ from quickstats import semistaticmethod
 from quickstats.utils.string_utils import parse_format_str_with_regex
 from quickstats.maths.numerics import str_decode_value
 from quickstats.extensions import ExtensionDataFrame
-from aliad.components import ModelOutput
+from aliad.components.outputs import ModelOutput
 
 from paws.settings import (
     FeatureLevel, ModelType, DecayMode,
     DEDICATED_SUPERVISED, PARAM_SUPERVISED, IDEAL_WEAKLY, SEMI_WEAKLY,
     DEFAULT_FEATURE_LEVEL, DEFAULT_DECAY_MODE, DEFAULT_OUTDIR,
-    FEILDS_REGEX, CHECKPOINT_DIR_FMTS
+    FEILDS_REGEX, CHECKPOINT_DIR_FMTS, SEMI_WEAKLY_PARAMETERS
+)
+from paws.utils import (
+    get_parameter_transforms
 )
 from paws.components.base_loader import BaseLoader
 
@@ -67,6 +70,7 @@ class ResultLoader(BaseLoader):
                          outdir=outdir,
                          verbosity=verbosity,
                          **kwargs)
+        self.param_transforms = get_parameter_transforms()
         self.reset()
 
     def reset(self) -> None:
@@ -148,11 +152,11 @@ class ResultLoader(BaseLoader):
         if not os.path.exists(path):
             raise FileNotFoundError(f'Missing output for predicted parameter values: {path}')
         with open(path) as file:
-            result = json.load(file)
-        result = {f'{key}_pred': value for key, value in result.items()}
-        # exponential activation on mu from semi-weakly model
-        result['mu_pred'] = np.exp(result['mu_pred'])
-        return result
+            predicted_weights = json.load(file)
+        predicted_params = {}
+        for key, value in predicted_weights.items():
+            predicted_params[f'{key}_pred'] = self.param_transforms[key].get_value(value)
+        return predicted_params
     
     def load(self, model_type: Union[str, ModelType],
              mass_points: Optional[List[List[float]]] = None,
@@ -230,12 +234,12 @@ class ResultLoader(BaseLoader):
                         raise RuntimeError(f'No result found for the mass point (m1, m2) = ({m1}, {m2}) GeV')
                     record_i.update({'m1': m1, 'm2': m2})
                     record_i['output'] = ModelOutput(y_true=result_df_i['y_true'],
-                                                     y_score=result_df_i['predicted_proba'],
+                                                     y_pred=result_df_i['predicted_proba'],
                                                      verbosity=self.stdout.verbosity)
                     results.append(record_i)
             else:
                 record['output'] = ModelOutput(y_true=result_df['y_true'],
-                                               y_score=result_df['predicted_proba'],
+                                               y_pred=result_df['predicted_proba'],
                                                verbosity=self.stdout.verbosity)
                 results.append(record)
         
@@ -269,10 +273,10 @@ class ResultLoader(BaseLoader):
             records = df.to_dict('records')
             for record in records:
                 record['model_type'] = model_type
-                output = record.pop('output')
-                if not detailed:
+                output = record.pop('output', None)
+                if (not detailed) or (output is None):
                     continue
-                record.update({'y_true': output.data['y_true'], 'y_score': output.data['y_score']})
+                record.update({'y_true': output.data['y_true'], 'y_pred': output.data['y_pred']})
             all_records.extend(records)
         df = pd.DataFrame(all_records)
         df.to_parquet(filename)
@@ -292,11 +296,11 @@ class ResultLoader(BaseLoader):
         df = pd.read_parquet(filename)
         
         def _parse(row):
-            return ModelOutput(y_true=row['y_true'], y_score=row['y_score'])
+            return ModelOutput(y_true=row['y_true'], y_pred=row['y_pred'])
 
         if 'y_true' in df.columns:
             df['output'] = df.apply(_parse, axis=1)
-            df = df.drop(columns=['y_true', 'y_score'])
+            df = df.drop(columns=['y_true', 'y_pred'])
         
         model_types = df['model_type'].unique()
         for model_type in model_types:
@@ -375,7 +379,7 @@ class ResultLoader(BaseLoader):
                 record['trial'] = np.nan
                 outputs = df_group['output'].values
                 y_trues = np.array([output.data['y_true'] for output in outputs])
-                y_preds = np.array([output.data['y_score'] for output in outputs])            
+                y_preds = np.array([output.data['y_pred'] for output in outputs])            
 
                 if topk is not None:
                     logloss = np.array([output.log_loss() for output in outputs])
@@ -390,7 +394,7 @@ class ResultLoader(BaseLoader):
 
                 y_true = y_trues[0]
                 y_pred = score_reduce(y_preds, axis=0)
-                output = ModelOutput(y_true=y_true, y_score=y_pred,
+                output = ModelOutput(y_true=y_true, y_pred=y_pred,
                                      verbosity=self.stdout.verbosity)
                 record['output'] = output
 

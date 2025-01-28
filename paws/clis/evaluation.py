@@ -39,7 +39,7 @@ DEFAULT_PARAM_EXPR = (f'm1=0_{MASS_RANGE[1]}_{MASS_INTERVAL},'
 @click.option('--alpha', default=0.5, type=float, show_default=True,
               help='Signal branching fraction in the dataset. Ignored '
              'when only one signal decay mode is considered.')
-@click.option('--kappa', default='1.0', type=str,
+@click.option('--kappa', default='1.0', type=str, show_default=True,
               help='Prior normalization factor. It can be a number (fixing kappa value), or a string '
               '. If string, it should be either "sampled" (kappa learned from sampling) or '
               '"inferred" (kappa learned from event number).')
@@ -76,6 +76,8 @@ DEFAULT_PARAM_EXPR = (f'm1=0_{MASS_RANGE[1]}_{MASS_INTERVAL},'
               help='Extra tag added to the output directory tree.')
 @click.option('--seed', default=BASE_SEED, type=int, show_default=True,
               help='The default seed used for all random processes.')
+@click.option('--nbootstrap', default=None, type=int, show_default=True,
+              help='Number of bootstrap samples.')
 @click.option('--batchsize', default=None, type=int, show_default=True,
               help='Batch size for the dataset.')
 @click.option('--cache-dataset/--no-cache-dataset', default=None, show_default=True,
@@ -104,28 +106,35 @@ def compute_semi_weakly_landscape(**kwargs):
 
     param_expr = kwargs.pop('param_expr')
     metrics = kwargs.pop('metrics')
+    nbootstrap = kwargs.pop('nbootstrap')
+    seed = kwargs['seed']
     tag = kwargs.pop('tag')
     if metrics:
         metrics = split_str(metrics, sep=',', remove_empty=True)
 
     model_trainer = get_model_trainer("semi_weakly", **kwargs)
-    datasets = model_trainer.get_datasets()
-    model = model_trainer.get_model()
-    
-    landscape = MetricLandscape()
-    result = landscape.eval_semiweakly(model, datasets['train'],
-                                       param_expr=param_expr,
-                                       metrics=metrics)
     parameters = model_trainer.model_loader._get_param_repr()
     model_options = model_trainer.model_options
     parameters['mass_point'] = model_options["mass_point"]
     parameters['mu'] = model_options["mu"]
     parameters['alpha'] = model_options["alpha"]
+    parameters['split_index'] = kwargs['split_index']
     parameters = model_trainer.path_manager.process_parameters(**parameters)
     parameters['tag'] = tag
     outname = model_trainer.path_manager.get_file("semi_weakly_landscape",
                                                   **parameters,
                                                   ds_type="train")
+    if kwargs['cache'] and os.path.exists(outname):
+        model_trainer.stdout.info(f"Cached semi-weakly model landscape output from {outname}")
+        return
+    datasets = model_trainer.get_datasets()
+    model = model_trainer.get_model()
+    landscape = MetricLandscape()
+    result = landscape.eval_semiweakly(model, datasets['train'],
+                                       param_expr=param_expr,
+                                       metrics=metrics,
+                                       nbootstrap=nbootstrap,
+                                       seed=seed)
     os.makedirs(os.path.dirname(outname), exist_ok=True)
     with open(outname, 'w') as file:
         json.dump(result, file, cls=NpEncoder)

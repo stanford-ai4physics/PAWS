@@ -59,7 +59,8 @@ W_QQ = Sample.W_QQ
 W_QQQ = Sample.W_QQQ
 
 # dataset setups
-MASS_RANGE = (50, 600)
+#MASS_RANGE = (50, 600)
+MASS_RANGE = (5, 600)
 MASS_INTERVAL = 50
 NUM_JETS = 2
 NUM_SHARDS = 100
@@ -71,10 +72,12 @@ BASE_SEED = 2023
 NUM_TRIALS = 10
 WEIGHT_CLIPPING = True
 RETRAIN = False
-MASS_SCALE = 1 / 100
 
-INIT_MU = -4
-INIT_ALPHA = np.exp(-1)
+SEMI_WEAKLY_PARAMETERS = ['m1', 'm2', 'mu', 'alpha']
+SIGMOID_ACTIVATION = False
+MASS_SCALE = 1 / 100
+INIT_MU = np.log(np.exp(-4) / (1 - np.exp(-4))) if SIGMOID_ACTIVATION else -4
+INIT_ALPHA = np.log(np.exp(-1) / (1 - np.exp(-1))) if SIGMOID_ACTIVATION else np.exp(-1)
 INIT_KAPPA = 1.
 
 # List of signal fractions and decay branching ratios used in this study

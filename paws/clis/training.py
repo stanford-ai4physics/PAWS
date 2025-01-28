@@ -277,6 +277,8 @@ def train_ideal_weakly(**kwargs):
              '\b\n same version as `fs_version` will be used.')
 @click.option('--retrain/--no-retrain', default=False, show_default=True,
               help='Retrain when m1 <-> m2 gives better validation loss.')
+@click.option('--use-sigmoid/--not-use-sigmoid', default=False, show_default=True,
+              help='Whether to use sigmoid activation.')
 @click.option('--seed', default=BASE_SEED, type=int, show_default=True,
               help='The default seed used for all random processes.')
 @click.option('--batchsize', default=None, type=int, show_default=True,
