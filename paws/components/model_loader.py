@@ -228,14 +228,14 @@ class ModelLoader(BaseLoader):
                                                        
                     'save_freq': 'epoch'
                 },
-                'metrics_logger': {'save_freq': -1}
+                'metrics_logger': {'save_freq': 'epoch'}
             }
         }
 
         if model_type and ModelType.parse(model_type) == SEMI_WEAKLY:
             
             config['callbacks']['weights_logger'] = {
-                'save_freq': -1,
+                'save_freq': 'epoch',
                 'display_weight': True
             }                            
             
