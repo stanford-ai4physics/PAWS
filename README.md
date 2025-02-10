@@ -77,7 +77,7 @@ paws download_data -d datasets
 ```
 - Create dedicated datasets in tfrecord format:
 ```
-paws create_dedicated_datasets --s QCD,extra_QCD,W_qq,W_qqq -d datasets
+paws create_dedicated_datasets -s QCD,extra_QCD,W_qq,W_qqq -d datasets
 ```
 
 - Create parameterised dataests in tfrecord format:
