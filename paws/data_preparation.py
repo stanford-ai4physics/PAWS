@@ -9,6 +9,8 @@ import subprocess
 import numpy as np
 import pandas as pd
 import awkward as ak
+import requests
+from tqdm import tqdm
 
 from aliad.interface.awkward import Momentum4DArrayBuilder
 from quickstats import stdout
@@ -27,13 +29,29 @@ def download_file(url:str, outdir:str):
         os.makedirs(outdir)
     
     outpath = os.path.join(outdir, os.path.basename(url))
-    command = ['wget', '-O', outpath, url]
-    
     try:
-        subprocess.run(command, check=True)
+        stdout.info(f"Downloading from {url}...")
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+
+        total_size = int(response.headers.get('content-length', 0))
+        #1 Kibibyte Block Size
+        block_size = 1024
+
+        with open(outpath, 'wb') as file, tqdm(
+            total=total_size,
+            unit='iB',
+            unit_scale=True,
+            desc=os.path.basename(url)
+        ) as bar:
+            for data in response.iter_content(block_size):
+                file.write(data)
+                bar.update(len(data))
+
         stdout.info(f"File downloaded to {outpath}")
-    except subprocess.CalledProcessError as e:
-        stdout.error(f"An error occurred: {e}")
+
+    except requests.RequestException as e:
+        stdout.error(f"An error occurred during download: {e}")
 
 def _get_unit_scale(unit:str='GeV'):
     if unit == 'GeV':
