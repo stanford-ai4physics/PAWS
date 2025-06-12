@@ -59,8 +59,8 @@ W_QQ = Sample.W_QQ
 W_QQQ = Sample.W_QQQ
 
 # dataset setups
-#MASS_RANGE = (50, 600)
-MASS_RANGE = (5, 600)
+MASS_RANGE = (50, 600)
+#MASS_RANGE = (5, 600)
 MASS_INTERVAL = 50
 NUM_JETS = 2
 NUM_SHARDS = 100
