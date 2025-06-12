@@ -10,3 +10,4 @@ tensorflow==2.15.0
 pyyaml
 requests
 tqdm
+tables
