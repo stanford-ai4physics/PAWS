@@ -1,4 +1,4 @@
-This repository contains the code used in the paper ["Incorporating Physical Priors into Weakly-Supervised Anomaly Detection"](https://arxiv.org/abs/2405.08889) by Chi Lung Cheng, Gurpreet Singh, and Benjamin Nachman.
+This repository contains the code used in the paper ["Incorporating Physical Priors into Weakly-Supervised Anomaly Detection"](https://arxiv.org/abs/2405.08889) by Chi Lung Cheng, Gurpreet (Gup) Singh, and Benjamin Nachman.
 
 ## Introduction
 
@@ -14,7 +14,7 @@ A demonstration illustrating the PAWS method using toy datasets and distribution
 
 ## Installation
 
-PAWS provides both API and CLI interfaces. The code requires python 3.8+ and the following libraries:
+PAWS provides both API and CLI interfaces. The code requires python 3.8+ and the following libraries (recommend Python version 3.10):
 
 ```python
 numpy==1.26.2
@@ -167,7 +167,7 @@ More detailed tutorials are available in the form of jupyter notebooks which cov
 ## Citation
 ```python
 @article{Cheng:2024yig,
-    author = "Cheng, Chi Lung and Singh, Gurpreet and Nachman, Benjamin",
+    author = "Cheng, Chi Lung and Singh, Gup and Nachman, Benjamin",
     title = "{Incorporating Physical Priors into Weakly-Supervised Anomaly Detection}",
     eprint = "2405.08889",
     archivePrefix = "arXiv",
