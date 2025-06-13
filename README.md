@@ -94,7 +94,7 @@ paws create_param_datasets -s QCD,extra_QCD,W_qqq -d datasets
 ```
 # usage: paws train_dedicated_supervised \[--options\]
 # e.g. 2-prong + 3-prong signals, (mX, mY) = 300, 300 GeV
-paws -d datasets -o outputs --mass-point 300:300 --decay-modes qq,qqq --variables 3,5,6 --split-index 0 --version v1
+paws train_dedicated_supervised -d datasets -o outputs --mass-point 300:300 --decay-modes qq,qqq --variables 3,5,6 --split-index 0 --version v1
 ```
 
 - Train parameterised supervised models:
