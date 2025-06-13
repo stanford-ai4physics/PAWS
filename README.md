@@ -75,12 +75,12 @@ Below are some example commands to reproduce results in the paper. More detailed
 ```
 paws download_data -d datasets
 ```
-- Create dedicated datasets in tfrecord format:
+- Create dedicated datasets in tfrecord format (~29GB):
 ```
 paws create_dedicated_datasets -s QCD,extra_QCD,W_qq,W_qqq -d datasets
 ```
 
-- Create parameterised dataests in tfrecord format:
+- Create parameterised dataests in tfrecord format (~52GB):
 ```
 # two-prong dataset
 paws create_param_datasets -s QCD,extra_QCD,W_qq -d datasets
