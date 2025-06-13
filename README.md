@@ -103,7 +103,7 @@ paws train_dedicated_supervised -d datasets -o outputs --mass-point 300:300 --de
 # e.g. 2-prong signal
 paws train_param_supervised -d datasets -o outputs --decay-modes qq --variables 3,5,6 --split-index 0 --version v1
 # e.g. 3-prong signal
-paws train_param_supervised -d datasets -o outputs --decay-modes qq --variables 3,5,6 --split-index 0 --version v1
+paws train_param_supervised -d datasets -o outputs --decay-modes qqq --variables 3,5,6 --split-index 0 --version v1
 ```
 
 - Train ideal weakly models:
