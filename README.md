@@ -25,6 +25,12 @@ vector==1.4.0
 aliad==0.2.0
 quickstats==0.7.0.8
 tensorflow==2.15.0
+pyyaml
+requests
+tqdm
+tables
+scikit-learn
+pyarrow
 ```
 
 The dependencies are also available in `requirements.txt` which can be installed via pip. Make sure you install tensorflow with gpu support if you want to train with GPUs.
