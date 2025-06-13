@@ -12,3 +12,4 @@ requests
 tqdm
 tables
 scikit-learn
+pyarrow
