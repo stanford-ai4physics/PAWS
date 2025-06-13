@@ -213,17 +213,22 @@ def gather_model_results(**kwargs):
     kwargs["mass_points"] = [split_str(mass_point, sep=":") for mass_point in kwargs["mass_points"]]
     result_loader.load(**kwargs)
     model_type = ModelType.parse(kwargs["model_type"])
+
     if model_type.key not in result_loader.dfs:
         stdout.warning("No results to save. Skipping.")
         return
+    
     if model_type in [ModelType.SEMI_WEAKLY, ModelType.IDEAL_WEAKLY]:
         result_loader.merge_trials(**merge_kwargs)
-    def get_metric(name:str):
+
+    def get_metric(name: str):
         if name.startswith('sic_'):
-            threshold = 1 / float(name.replace("sic_", ""))
-            return (name, 'threshold_significance', {"fpr_thres": threshold})
+            stdout.warning(f"Skipping unsupported metric: {name}")
+            return None
         return name
+
     metrics = [get_metric(metric) for metric in metrics]
+    metrics = [m for m in metrics if m is not None]
     result_loader.decorate_results(metrics)
     format_keys = result_loader._get_param_repr()
     format_keys['model_type'] = model_type.key
