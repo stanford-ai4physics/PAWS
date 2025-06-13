@@ -11,3 +11,4 @@ pyyaml
 requests
 tqdm
 tables
+scikit-learn
